@@ -4,6 +4,7 @@ import type {
   ChannelDTO, ChannelInput, ChannelKindDTO, DeliverResult, DemoSeedResult, DoctorCheck, ExportFormat,
   GroupBulkResult, GroupDTO, GroupPatch, GroupQuery, HealthDTO, ImportResult, IntelItemDetail, KbArticleDTO, KbListDTO, KbQuery, LlmTestResult,
   LogDTO, LogQuery, OkDTO, OverviewDTO, Paged, Platform, PlatformDTO, PlatformUpdate, PromptDTO, PromptName,
+  ManualRunInput, ManualRunResult,
   RefreshGroupsResult, ReportDTO, ReportSummaryDTO, RunCreate, RunDTO, ScheduleDTO, ScheduleInput, SessionDTO,
   SettingsDTO, SettingsPatch, TestResult,
 } from './types'
@@ -35,6 +36,8 @@ export const api = {
     request<RunDTO>('POST', `/schedules/${enc(id)}/run`, { body: dry_run === undefined ? {} : { dry_run } }),
 
   createRun: (body: RunCreate, o?: O) => request<RunDTO>('POST', '/runs', { body, ...o }),
+  /** 手动出报：指定单日或日期区间，后端按日期先后排队，每天一份报告 */
+  manualRun: (body: ManualRunInput) => request<ManualRunResult>('POST', '/runs/manual', { body }),
   runs: (limit = 20, offset?: number) => request<Paged<RunDTO>>('GET', '/runs', { query: { limit, offset } }),
   run: (id: string, o?: O) => request<RunDTO>('GET', `/runs/${enc(id)}`, o),
   cancelRun: (id: string) => request<RunDTO>('POST', `/runs/${enc(id)}/cancel`),

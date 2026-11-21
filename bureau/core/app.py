@@ -53,6 +53,48 @@ class AppContext:
     def now(self) -> datetime:
         return now(self.tz)
 
+    def start_manual_batch(self, *, platforms: list[str], group_keys: list[str], channel_ids: list[str] | None,
+                           dry_run: bool, days: list[Any], day_window: Any) -> None:
+        """手动出报（多天）：在后台按日期先后依次跑，每天单独一份报告。
+
+        流水线同一时间只能跑一次，所以这里串行 await，而不是并发起跑。
+        任务本身不阻塞 HTTP 请求；进度照旧通过 run.stage / run.finished 事件推送。
+        """
+        import asyncio
+
+        from bureau.pipeline.runner import RunBusyError, RunRequest
+
+        runner = self.runner
+
+        async def worker() -> None:
+            total = len(days)
+            for i, day in enumerate(days, 1):
+                # 排在已有运行后面：最多等 30 分钟，超时就跳过这一天，不让整个队列卡死
+                if not await runner.wait_idle(timeout=1800):
+                    log.warning("手动出报：等待前一个运行超时，跳过 %s", day)
+                    continue
+                start, end = day_window(day, self.tz)
+                req = RunRequest(trigger="manual", platforms=platforms, group_keys=group_keys,
+                                 channel_ids=channel_ids, dry_run=dry_run,
+                                 window_start=start, window_end=end)
+                try:
+                    dto = await runner.start(req)
+                except RunBusyError as exc:
+                    log.warning("手动出报 %s 未能启动：%s", day, exc)
+                    continue
+                log.info("手动出报 %s/%s：%s 已开始（%s）", i, total, day, dto["id"])
+                task = runner._task
+                if task is not None:
+                    try:
+                        await task
+                    except asyncio.CancelledError:
+                        log.warning("手动出报队列被取消，剩余 %s 天不再执行", total - i)
+                        return
+                    except Exception:                    # noqa: BLE001  单天失败继续下一天
+                        log.warning("手动出报 %s 运行出错，继续下一天", day)
+
+        self._manual_task = asyncio.get_running_loop().create_task(worker(), name="manual-batch")
+
     def mode(self) -> str:
         """有演示群、且没有真实白名单群时为 demo。"""
         demo_n = int(self.db.scalar("SELECT COUNT(*) FROM groups WHERE is_demo=1", (), 0))

@@ -9,6 +9,7 @@ import { fmtCny, fmtDuration, fmtInt, fmtShort } from '@/utils/format'
 import { runProgress } from '@/utils/agents'
 import HudPanel from '@/components/hud/HudPanel.vue'
 import ScheduleCard from '@/components/schedules/ScheduleCard.vue'
+import ManualRunModal from '@/components/schedules/ManualRunModal.vue'
 import RunDrawer from '@/components/schedules/RunDrawer.vue'
 import Icon from '@/components/Icon.vue'
 
@@ -17,6 +18,7 @@ const channels = ref<ChannelDTO[]>([])
 const groups = ref<GroupDTO[]>([])
 const runs = ref<RunDTO[]>([])
 const creating = ref(false)
+const manualOpen = ref(false)
 const open = ref<RunDTO | null>(null)
 
 async function loadAll(): Promise<void> {
@@ -45,6 +47,7 @@ const schName = (id?: string) => schedules.value.find((s) => s.id === id)?.name
     <div class="page-intro">
       <span>定时任务按 cron 在 Asia/Shanghai 时区触发；电脑关机错过的运行会在启动后补跑一次。同一时间只运行一次流水线。</span>
       <span class="spacer" />
+      <button class="btn" :disabled="creating" @click="manualOpen = true"><Icon name="calendar" />手动出报</button>
       <button class="btn primary" :disabled="creating" @click="creating = true"><Icon name="plus" />新建任务</button>
     </div>
     <div class="cards sch">
@@ -80,6 +83,8 @@ const schName = (id?: string) => schedules.value.find((s) => s.id === id)?.name
       </table>
     </HudPanel>
     <RunDrawer :run="open" @close="open = null" />
+    <ManualRunModal :open="manualOpen" :channels="channels" :groups="groups"
+      @close="manualOpen = false" @started="loadRuns" />
   </div>
 </template>
 
