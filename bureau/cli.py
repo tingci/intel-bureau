@@ -95,9 +95,33 @@ async def _run(args: argparse.Namespace) -> int:
 
     ctx = _app()
     platforms = [p.strip() for p in (args.platforms or "").split(",") if p.strip()]
+
+    window_start = window_end = None
+    if getattr(args, "date", None):
+        from datetime import date as _date
+
+        from bureau.pipeline.window import day_window
+
+        try:
+            day = _date.fromisoformat(args.date)
+        except ValueError:
+            print(f"日期格式不对：{args.date}，要写成 2026-11-17 这样")
+            ctx.close()
+            return 2
+        if args.window_hours:
+            print("--date 和 --window-hours 不能同时用")
+            ctx.close()
+            return 2
+        if args.demo:
+            print("--date 只能配合真实数据使用，不能和 --demo 一起用")
+            ctx.close()
+            return 2
+        window_start, window_end = day_window(day, ctx.tz)
+
     req = RunRequest(trigger="manual", platforms=platforms, window_hours=args.window_hours,
                      window_mode="fixed_hours" if args.window_hours else "since_last", dry_run=args.dry_run,
-                     demo=args.demo, channel_ids=None)
+                     demo=args.demo, channel_ids=None,
+                     window_start=window_start, window_end=window_end)
     sub = ctx.bus.subscribe(maxsize=2000)
     printed_running: set[str] = set()
 
@@ -244,6 +268,8 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--dry-run", action="store_true", help="只生成报告，不投递")
     r.add_argument("--platforms", default="", help="逗号分隔：wechat,qq,feishu")
     r.add_argument("--window-hours", type=int, default=None, help="窗口小时数（默认自上次成功运行起）")
+    r.add_argument("--date", default=None, metavar="YYYY-MM-DD",
+                   help="按日期重跑：只处理这一天（本地时区 00:00~次日 00:00），报告单独一份")
     r.set_defaults(func=cmd_run)
     d = sub.add_parser("doctor", help="体检")
     d.set_defaults(func=cmd_doctor)

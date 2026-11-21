@@ -36,6 +36,8 @@ class RunRequest:
     channel_ids: list[str] | None = None
     window_hours: int | None = None
     window_mode: str = "since_last"
+    window_start: datetime | None = None      # 按日期重跑时显式指定（本地时区）
+    window_end: datetime | None = None
     dry_run: bool = False
     demo: bool = False
     top_n: int | None = None
@@ -121,11 +123,14 @@ class PipelineRunner:
             app = self.app
             settings = app.config.settings
             start, end = compute_window(app, demo=req.demo, window_mode=req.window_mode,
-                                        window_hours=req.window_hours, schedule_id=req.schedule_id)
+                                        window_hours=req.window_hours, schedule_id=req.schedule_id,
+                                        window_start=req.window_start, window_end=req.window_end)
             run_id = new_id("run", app)
             trigger = "demo" if req.demo and req.trigger == "manual" else req.trigger
             params = {"platforms": req.platforms, "group_keys": req.group_keys, "channel_ids": req.channel_ids,
                       "window_hours": req.window_hours, "window_mode": req.window_mode, "demo": req.demo}
+            if req.window_start is not None and req.window_end is not None:
+                params["window"] = {"start": iso(req.window_start, app.tz), "end": iso(req.window_end, app.tz)}
             app.store.create_run(run_id, trigger=trigger, schedule_id=req.schedule_id, dry_run=req.dry_run,
                                  is_demo=req.demo, window_start=iso(start, app.tz), window_end=iso(end, app.tz),
                                  params=params)

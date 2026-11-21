@@ -49,11 +49,29 @@ async def create_run(request: Request, ctx: AppContext = Depends(get_ctx)) -> JS
         raise ApiError(400, "invalid_window", "window_hours 必须在 1~744 之间")
     demo = body.get("demo")
     demo = (ctx.mode() == "demo") if demo is None else bool(demo)
+
+    # 按日期重跑：body 里给 date="YYYY-MM-DD"，只处理本地时区那一天。
+    window_start = window_end = None
+    date_str = body.get("date")
+    if date_str:
+        from datetime import date as _date
+
+        from bureau.pipeline.window import day_window
+
+        if hours is not None:
+            raise ApiError(400, "invalid_window", "date 和 window_hours 不能同时指定")
+        try:
+            day = _date.fromisoformat(str(date_str))
+        except ValueError:
+            raise ApiError(400, "invalid_date", f"日期格式不对：{date_str}，要写成 2026-11-17 这样") from None
+        window_start, window_end = day_window(day, ctx.tz)
+
     channel_ids = body.get("channel_ids")
     req = RunRequest(trigger="manual", platforms=platforms, group_keys=_str_list(body.get("group_keys"), "group_keys"),
                      channel_ids=_str_list(channel_ids, "channel_ids") if channel_ids is not None else None,
                      window_hours=int(hours) if hours else None, window_mode="fixed_hours" if hours else "since_last",
-                     dry_run=bool(body.get("dry_run", False)), demo=demo)
+                     dry_run=bool(body.get("dry_run", False)), demo=demo,
+                     window_start=window_start, window_end=window_end)
     return await start_run(ctx, req)
 
 
