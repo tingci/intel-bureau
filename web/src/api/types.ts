@@ -174,6 +174,27 @@ export interface ScheduleRunBody { dry_run?: boolean }
 export interface RunCreate { platforms?: Platform[]; group_keys?: string[]; channel_ids?: string[];
   window_hours?: number; dry_run?: boolean; demo?: boolean }
 
+/** 手动出报（POST /api/runs/manual）：单日用 date，区间用 date_from + date_to，每天一份报告 */
+export interface ManualRunInput {
+  date?: string
+  date_from?: string
+  date_to?: string
+  platforms?: Platform[]
+  group_keys?: string[]
+  channel_ids?: string[]
+  /** 默认 true：补历史只预览、不往通道推 */
+  dry_run?: boolean
+}
+export interface ManualRunResult {
+  started: boolean
+  total: number
+  dates: string[]
+  dry_run: boolean
+  busy_before: boolean
+  current_run: RunDTO | null
+  note: string
+}
+
 export interface DeliverBody { channel_ids: string[] }
 export interface DeliverResult { results: { channel_id: string; ok: boolean; detail: string }[] }
 export type ExportFormat = 'md' | 'html' | 'json'
